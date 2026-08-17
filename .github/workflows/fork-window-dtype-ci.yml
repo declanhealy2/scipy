@@ -1,0 +1,43 @@
+name: Fork window dtype CI
+
+on:
+  push:
+    branches:
+      - signal-window-dtype
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-window-dtype-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@a0af7a228712d6121d37aba47adf55c1332c9c2e
+        with:
+          pixi-version: v0.71.0
+          cache: false
+          environments: build-cpu array-api-strict lint
+      - name: Build SciPy
+        run: pixi run build-cpu
+      - name: Run targeted Array API tests
+        run: |
+          pixi run --skip-deps test-strict -j 2 -- \
+            scipy/signal/tests/test_windows_dtype.py \
+            --durations=10
+      - name: Run targeted lint
+        run: |
+          pixi run --environment lint ruff check \
+            scipy/signal/windows/_windows.py \
+            scipy/signal/tests/test_windows_dtype.py
+          pixi run --environment lint ruff format --check \
+            scipy/signal/windows/_windows.py \
+            scipy/signal/tests/test_windows_dtype.py
