@@ -1,5 +1,6 @@
 name: Fork window dtype CI
 
+# Temporary fork-only verification workflow.
 on:
   push:
     branches:
