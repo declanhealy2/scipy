@@ -42,3 +42,11 @@ def test_basic_window_float16_numpy(window, extra_args, length):
 @pytest.mark.parametrize("window, extra_args", WINDOW_CASES)
 def test_basic_window_default_dtype_unchanged(window, extra_args):
     assert window(8, *extra_args).dtype == np.float64
+
+
+@make_xp_test_case(*WINDOW_FUNCTIONS)
+@pytest.mark.parametrize("window, extra_args", WINDOW_CASES)
+@pytest.mark.parametrize("dtype_name", ("int32", "complex64"))
+def test_basic_window_rejects_nonfloating_dtype(xp, window, extra_args, dtype_name):
+    with pytest.raises(ValueError, match="real floating"):
+        window(8, *extra_args, xp=xp, dtype=getattr(xp, dtype_name))

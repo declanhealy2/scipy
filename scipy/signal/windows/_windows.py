@@ -52,8 +52,15 @@ def _namespace(xp):
     return xp_compat_namespace(xp)
 
 
-def _general_cosine_impl(M, a, xp, device, sym=True, dtype=None):
+def _validate_window_dtype(xp, dtype):
     dtype = xp.float64 if dtype is None else dtype
+    if not xp.isdtype(dtype, "real floating"):
+        raise ValueError("`dtype` must be a real floating data type.")
+    return dtype
+
+
+def _general_cosine_impl(M, a, xp, device, sym=True, dtype=None):
+    dtype = _validate_window_dtype(xp, dtype)
     if _len_guards(M):
         return xp.ones(M, dtype=dtype, device=device)
     M, needs_trunc = _extend(M, sym)
@@ -165,7 +172,7 @@ def boxcar(M, sym=True, *, xp=None, device=None, dtype=None):
         Whether the window is symmetric. (Has no effect for boxcar.)
     %(xp_device_snippet)s
     dtype : dtype, optional
-        Data type of the returned window. The default is ``float64``.
+        Real floating data type of the returned window. The default is ``float64``.
 
     Returns
     -------
@@ -284,7 +291,7 @@ def boxcar(M, sym=True, *, xp=None, device=None, dtype=None):
     >>> plt.show()
     """
     xp = _namespace(xp)
-    dtype = xp.float64 if dtype is None else dtype
+    dtype = _validate_window_dtype(xp, dtype)
 
     if _len_guards(M):
         return xp.ones(M, dtype=dtype, device=device)
@@ -513,7 +520,7 @@ def blackman(M, sym=True, *, xp=None, device=None, dtype=None):
         When False, generates a periodic window, for use in spectral analysis.
     %(xp_device_snippet)s
     dtype : dtype, optional
-        Data type of the returned window. The default is ``float64``.
+        Real floating data type of the returned window. The default is ``float64``.
 
     Returns
     -------
@@ -580,7 +587,7 @@ def blackman(M, sym=True, *, xp=None, device=None, dtype=None):
     """
     # Docstring adapted from NumPy's blackman function
     xp = _namespace(xp)
-    dtype = xp.float64 if dtype is None else dtype
+    dtype = _validate_window_dtype(xp, dtype)
     a = xp.asarray([0.42, 0.50, 0.08], dtype=dtype, device=device)
     device = xp_device(a)
     return _general_cosine_impl(M, a, xp, device, sym=sym, dtype=dtype)
@@ -603,7 +610,7 @@ def nuttall(M, sym=True, *, xp=None, device=None, dtype=None):
         When False, generates a periodic window, for use in spectral analysis.
     %(xp_device_snippet)s
     dtype : dtype, optional
-        Data type of the returned window. The default is ``float64``.
+        Real floating data type of the returned window. The default is ``float64``.
 
     Returns
     -------
@@ -648,7 +655,7 @@ def nuttall(M, sym=True, *, xp=None, device=None, dtype=None):
 
     """
     xp = _namespace(xp)
-    dtype = xp.float64 if dtype is None else dtype
+    dtype = _validate_window_dtype(xp, dtype)
     a = xp.asarray(
         [0.3635819, 0.4891775, 0.1365995, 0.0106411], dtype=dtype, device=device
     )
@@ -671,7 +678,7 @@ def blackmanharris(M, sym=True, *, xp=None, device=None, dtype=None):
         When False, generates a periodic window, for use in spectral analysis.
     %(xp_device_snippet)s
     dtype : dtype, optional
-        Data type of the returned window. The default is ``float64``.
+        Real floating data type of the returned window. The default is ``float64``.
 
     Returns
     -------
@@ -706,7 +713,7 @@ def blackmanharris(M, sym=True, *, xp=None, device=None, dtype=None):
 
     """
     xp = _namespace(xp)
-    dtype = xp.float64 if dtype is None else dtype
+    dtype = _validate_window_dtype(xp, dtype)
     a = xp.asarray(
         [0.35875, 0.48829, 0.14128, 0.01168], dtype=dtype, device=device
     )
@@ -729,7 +736,7 @@ def flattop(M, sym=True, *, xp=None, device=None, dtype=None):
         When False, generates a periodic window, for use in spectral analysis.
     %(xp_device_snippet)s
     dtype : dtype, optional
-        Data type of the returned window. The default is ``float64``.
+        Real floating data type of the returned window. The default is ``float64``.
 
     Returns
     -------
@@ -778,7 +785,7 @@ def flattop(M, sym=True, *, xp=None, device=None, dtype=None):
 
     """
     xp = _namespace(xp)
-    dtype = xp.float64 if dtype is None else dtype
+    dtype = _validate_window_dtype(xp, dtype)
     a = xp.asarray(
         [0.21557895, 0.41663158, 0.277263158, 0.083578947, 0.006947368],
         dtype=dtype, device=device
@@ -908,7 +915,7 @@ def hann(M, sym=True, *, xp=None, device=None, dtype=None):
         When ``False``, generates a periodic window, for use in spectral analysis.
     %(xp_device_snippet)s
     dtype : dtype, optional
-        Data type of the returned window. The default is ``float64``.
+        Real floating data type of the returned window. The default is ``float64``.
 
     Returns
     -------
@@ -1225,7 +1232,7 @@ def general_hamming(M, alpha, sym=True, *, xp=None, device=None, dtype=None):
         When False, generates a periodic window, for use in spectral analysis.
     %(xp_device_snippet)s
     dtype : dtype, optional
-        Data type of the returned window. The default is ``float64``.
+        Real floating data type of the returned window. The default is ``float64``.
 
     Returns
     -------
@@ -1296,7 +1303,7 @@ def general_hamming(M, alpha, sym=True, *, xp=None, device=None, dtype=None):
 
     """
     xp = _namespace(xp)
-    dtype = xp.float64 if dtype is None else dtype
+    dtype = _validate_window_dtype(xp, dtype)
     a = xp.asarray([alpha, 1. - alpha], dtype=dtype, device=device)
     device = xp_device(a)
     return _general_cosine_impl(M, a, xp, device, sym=sym, dtype=dtype)
@@ -1320,7 +1327,7 @@ def hamming(M, sym=True, *, xp=None, device=None, dtype=None):
         When False, generates a periodic window, for use in spectral analysis.
     %(xp_device_snippet)s
     dtype : dtype, optional
-        Data type of the returned window. The default is ``float64``.
+        Real floating data type of the returned window. The default is ``float64``.
 
     Returns
     -------
