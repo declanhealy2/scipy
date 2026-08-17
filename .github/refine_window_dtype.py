@@ -23,10 +23,14 @@ source = source.replace(anchor, replacement)
 
 old_resolution = "    dtype = xp.float64 if dtype is None else dtype\n"
 new_resolution = "    dtype = _validate_window_dtype(xp, dtype)\n"
-count = source.count(old_resolution)
+head, separator, tail = source.partition("def _general_cosine_impl")
+if not separator:
+    raise RuntimeError("general cosine implementation missing")
+count = tail.count(old_resolution)
 if count != 6:
     raise RuntimeError(f"expected six public dtype resolutions, found {count}")
-source = source.replace(old_resolution, new_resolution)
+tail = tail.replace(old_resolution, new_resolution)
+source = head + separator + tail
 
 old_doc = '''    dtype : dtype, optional
         Data type of the returned window. The default is ``float64``.
