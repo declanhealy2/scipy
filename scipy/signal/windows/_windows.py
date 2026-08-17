@@ -52,13 +52,14 @@ def _namespace(xp):
     return xp_compat_namespace(xp)
 
 
-def _general_cosine_impl(M, a, xp, device, sym=True):
+def _general_cosine_impl(M, a, xp, device, sym=True, dtype=None):
+    dtype = xp.float64 if dtype is None else dtype
     if _len_guards(M):
-        return xp.ones(M, dtype=xp.float64, device=device)
+        return xp.ones(M, dtype=dtype, device=device)
     M, needs_trunc = _extend(M, sym)
 
-    fac = xp.linspace(-xp.pi, xp.pi, M, dtype=xp.float64, device=device)
-    w = xp.zeros(M, dtype=xp.float64, device=device)
+    fac = xp.linspace(-xp.pi, xp.pi, M, dtype=dtype, device=device)
+    w = xp.zeros(M, dtype=dtype, device=device)
     for k in range(a.shape[0]):
         w += a[k] * xp.cos(k * fac)
 
@@ -149,7 +150,7 @@ def general_cosine(M, a, sym=True):
 
 
 @xp_capabilities()
-def boxcar(M, sym=True, *, xp=None, device=None):
+def boxcar(M, sym=True, *, xp=None, device=None, dtype=None):
     r"""Return a boxcar or rectangular window.
 
     Also known as a rectangular window or Dirichlet window. This is equivalent
@@ -163,6 +164,8 @@ def boxcar(M, sym=True, *, xp=None, device=None):
     sym : bool, optional
         Whether the window is symmetric. (Has no effect for boxcar.)
     %(xp_device_snippet)s
+    dtype : dtype, optional
+        Data type of the returned window. The default is ``float64``.
 
     Returns
     -------
@@ -281,12 +284,13 @@ def boxcar(M, sym=True, *, xp=None, device=None):
     >>> plt.show()
     """
     xp = _namespace(xp)
+    dtype = xp.float64 if dtype is None else dtype
 
     if _len_guards(M):
-        return xp.ones(M, dtype=xp.float64, device=device)
+        return xp.ones(M, dtype=dtype, device=device)
     M, needs_trunc = _extend(M, sym)
 
-    w = xp.ones(M, dtype=xp.float64, device=device)
+    w = xp.ones(M, dtype=dtype, device=device)
 
     return _truncate(w, needs_trunc)
 
@@ -489,7 +493,7 @@ def bohman(M, sym=True, *, xp=None, device=None):
 
 
 @xp_capabilities()
-def blackman(M, sym=True, *, xp=None, device=None):
+def blackman(M, sym=True, *, xp=None, device=None, dtype=None):
     r"""
     Return a Blackman window.
 
@@ -508,6 +512,8 @@ def blackman(M, sym=True, *, xp=None, device=None):
         design.
         When False, generates a periodic window, for use in spectral analysis.
     %(xp_device_snippet)s
+    dtype : dtype, optional
+        Data type of the returned window. The default is ``float64``.
 
     Returns
     -------
@@ -574,13 +580,14 @@ def blackman(M, sym=True, *, xp=None, device=None):
     """
     # Docstring adapted from NumPy's blackman function
     xp = _namespace(xp)
-    a = xp.asarray([0.42, 0.50, 0.08], dtype=xp.float64, device=device)
+    dtype = xp.float64 if dtype is None else dtype
+    a = xp.asarray([0.42, 0.50, 0.08], dtype=dtype, device=device)
     device = xp_device(a)
-    return _general_cosine_impl(M, a, xp, device, sym=sym)
+    return _general_cosine_impl(M, a, xp, device, sym=sym, dtype=dtype)
 
 
 @xp_capabilities()
-def nuttall(M, sym=True, *, xp=None, device=None):
+def nuttall(M, sym=True, *, xp=None, device=None, dtype=None):
     """Return a minimum 4-term Blackman-Harris window according to Nuttall.
 
     This variation is called "Nuttall4c" by Heinzel. [2]_
@@ -595,6 +602,8 @@ def nuttall(M, sym=True, *, xp=None, device=None):
         design.
         When False, generates a periodic window, for use in spectral analysis.
     %(xp_device_snippet)s
+    dtype : dtype, optional
+        Data type of the returned window. The default is ``float64``.
 
     Returns
     -------
@@ -639,15 +648,16 @@ def nuttall(M, sym=True, *, xp=None, device=None):
 
     """
     xp = _namespace(xp)
+    dtype = xp.float64 if dtype is None else dtype
     a = xp.asarray(
-        [0.3635819, 0.4891775, 0.1365995, 0.0106411], dtype=xp.float64, device=device
+        [0.3635819, 0.4891775, 0.1365995, 0.0106411], dtype=dtype, device=device
     )
     device = xp_device(a)
-    return _general_cosine_impl(M, a, xp, device, sym=sym)
+    return _general_cosine_impl(M, a, xp, device, sym=sym, dtype=dtype)
 
 
 @xp_capabilities()
-def blackmanharris(M, sym=True, *, xp=None, device=None):
+def blackmanharris(M, sym=True, *, xp=None, device=None, dtype=None):
     """Return a minimum 4-term Blackman-Harris window.
 
     Parameters
@@ -660,6 +670,8 @@ def blackmanharris(M, sym=True, *, xp=None, device=None):
         design.
         When False, generates a periodic window, for use in spectral analysis.
     %(xp_device_snippet)s
+    dtype : dtype, optional
+        Data type of the returned window. The default is ``float64``.
 
     Returns
     -------
@@ -694,15 +706,16 @@ def blackmanharris(M, sym=True, *, xp=None, device=None):
 
     """
     xp = _namespace(xp)
+    dtype = xp.float64 if dtype is None else dtype
     a = xp.asarray(
-        [0.35875, 0.48829, 0.14128, 0.01168], dtype=xp.float64, device=device
+        [0.35875, 0.48829, 0.14128, 0.01168], dtype=dtype, device=device
     )
     device = xp_device(a)
-    return _general_cosine_impl(M, a, xp, device, sym=sym)
+    return _general_cosine_impl(M, a, xp, device, sym=sym, dtype=dtype)
 
 
 @xp_capabilities()
-def flattop(M, sym=True, *, xp=None, device=None):
+def flattop(M, sym=True, *, xp=None, device=None, dtype=None):
     """Return a flat top window.
 
     Parameters
@@ -715,6 +728,8 @@ def flattop(M, sym=True, *, xp=None, device=None):
         design.
         When False, generates a periodic window, for use in spectral analysis.
     %(xp_device_snippet)s
+    dtype : dtype, optional
+        Data type of the returned window. The default is ``float64``.
 
     Returns
     -------
@@ -763,12 +778,13 @@ def flattop(M, sym=True, *, xp=None, device=None):
 
     """
     xp = _namespace(xp)
+    dtype = xp.float64 if dtype is None else dtype
     a = xp.asarray(
         [0.21557895, 0.41663158, 0.277263158, 0.083578947, 0.006947368],
-        dtype=xp.float64, device=device
+        dtype=dtype, device=device
     )
     device = xp_device(a)
-    return _general_cosine_impl(M, a, xp, device, sym=sym)
+    return _general_cosine_impl(M, a, xp, device, sym=sym, dtype=dtype)
 
 
 @xp_capabilities()
@@ -876,7 +892,7 @@ def bartlett(M, sym=True, *, xp=None, device=None):
 
 
 @xp_capabilities()
-def hann(M, sym=True, *, xp=None, device=None):
+def hann(M, sym=True, *, xp=None, device=None, dtype=None):
     r"""Return a Hann window.
 
     The Hann window is a taper formed by using a raised cosine or sine-squared
@@ -891,6 +907,8 @@ def hann(M, sym=True, *, xp=None, device=None):
         When ``True`` (default), generates a symmetric window, for use in filter design.
         When ``False``, generates a periodic window, for use in spectral analysis.
     %(xp_device_snippet)s
+    dtype : dtype, optional
+        Data type of the returned window. The default is ``float64``.
 
     Returns
     -------
@@ -1036,7 +1054,7 @@ def hann(M, sym=True, *, xp=None, device=None):
     the order of :math:`O(|f|^{-3})`, which corresponds to -60 dB per frequency decade.
     """
     # Docstring adapted from NumPy's hanning function
-    return general_hamming(M, 0.5, sym, xp=xp, device=device)
+    return general_hamming(M, 0.5, sym, xp=xp, device=device, dtype=dtype)
 
 
 @xp_capabilities()
@@ -1188,7 +1206,7 @@ def barthann(M, sym=True, *, xp=None, device=None):
 
 
 @xp_capabilities()
-def general_hamming(M, alpha, sym=True, *, xp=None, device=None):
+def general_hamming(M, alpha, sym=True, *, xp=None, device=None, dtype=None):
     r"""Return a generalized Hamming window.
 
     The generalized Hamming window is constructed by multiplying a rectangular
@@ -1206,6 +1224,8 @@ def general_hamming(M, alpha, sym=True, *, xp=None, device=None):
         design.
         When False, generates a periodic window, for use in spectral analysis.
     %(xp_device_snippet)s
+    dtype : dtype, optional
+        Data type of the returned window. The default is ``float64``.
 
     Returns
     -------
@@ -1276,13 +1296,14 @@ def general_hamming(M, alpha, sym=True, *, xp=None, device=None):
 
     """
     xp = _namespace(xp)
-    a = xp.asarray([alpha, 1. - alpha], dtype=xp.float64, device=device)
+    dtype = xp.float64 if dtype is None else dtype
+    a = xp.asarray([alpha, 1. - alpha], dtype=dtype, device=device)
     device = xp_device(a)
-    return _general_cosine_impl(M, a, xp, device, sym=sym)
+    return _general_cosine_impl(M, a, xp, device, sym=sym, dtype=dtype)
 
 
 @xp_capabilities()
-def hamming(M, sym=True, *, xp=None, device=None):
+def hamming(M, sym=True, *, xp=None, device=None, dtype=None):
     r"""Return a Hamming window.
 
     The Hamming window is a taper formed by using a raised cosine with
@@ -1298,6 +1319,8 @@ def hamming(M, sym=True, *, xp=None, device=None):
         design.
         When False, generates a periodic window, for use in spectral analysis.
     %(xp_device_snippet)s
+    dtype : dtype, optional
+        Data type of the returned window. The default is ``float64``.
 
     Returns
     -------
@@ -1359,7 +1382,7 @@ def hamming(M, sym=True, *, xp=None, device=None):
 
     """
     # Docstring adapted from NumPy's hamming function
-    return general_hamming(M, 0.54, sym, xp=xp, device=device)
+    return general_hamming(M, 0.54, sym, xp=xp, device=device, dtype=dtype)
 
 
 @xp_capabilities()
