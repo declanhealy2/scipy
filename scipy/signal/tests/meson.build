@@ -22,6 +22,7 @@ py3.install_sources([
     'test_waveforms.py',
     'test_wavelets.py',
     'test_windows.py',
+    'test_windows_dtype.py',
     'test_whittaker.py'
   ],
   subdir: 'scipy/signal/tests',

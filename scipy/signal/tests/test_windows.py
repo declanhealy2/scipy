@@ -885,9 +885,7 @@ class TestGetWindow:
             windows.get_window('kaiser', 5, xp=xp)
         with pytest.raises(ValueError, match="^Window dpss must have one.*"):
             windows.get_window(('dpss', 1, 2), 5, xp=xp)
-        with pytest.raises(ValueError, match="^'general_cosine' does not accept.*"):
-            xp_ = xp or np  # ensure parameter xp_ is not None
-            windows.get_window(('general cosine', [1, 2]), 5, xp=xp_)
+        windows.get_window(('general cosine', [1, 2]), 5, xp=xp)
 
     @make_xp_test_case(windows.bartlett)
     def test_symmetric_periodic(self, xp):
@@ -925,8 +923,10 @@ class TestGetWindow:
                                    fftbins=False),
                         xp.asarray([0.4, 0.55, 0.55, 0.4], dtype=xp.float64))
 
-        with pytest.raises(ValueError):
-            get_window(('general_cosine', [0.5, 0.3, 0.2]), 4, xp=xp)
+        xp_assert_close(
+            get_window(('general_cosine', [0.5, 0.3, 0.2]), 4, xp=xp),
+            xp.asarray([0.4, 0.3, 1, 0.3], dtype=xp.float64),
+        )
 
     @make_xp_test_case(windows.general_hamming)
     def test_general_hamming(self, xp):
