@@ -885,9 +885,7 @@ class TestGetWindow:
             windows.get_window('kaiser', 5, xp=xp)
         with pytest.raises(ValueError, match="^Window dpss must have one.*"):
             windows.get_window(('dpss', 1, 2), 5, xp=xp)
-        with pytest.raises(ValueError, match="^'general_cosine' does not accept.*"):
-            xp_ = xp or np  # ensure parameter xp_ is not None
-            windows.get_window(('general cosine', [1, 2]), 5, xp=xp_)
+        windows.get_window(('general cosine', [1, 2]), 5, xp=xp)
 
     @make_xp_test_case(windows.bartlett)
     def test_symmetric_periodic(self, xp):
