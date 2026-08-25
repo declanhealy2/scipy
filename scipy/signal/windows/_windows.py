@@ -48,6 +48,10 @@ def _namespace(xp):
     Will be able to replace with `np_compat if xp is None else xp` when we drop
     support for numpy 1.x and cupy 13.x
     """
+    if xp is not None and (
+        xp.__name__ == "mlx.core" or xp.__name__.endswith("array_api_compat.mlx")
+    ):
+        return xp
     return xp_compat_namespace(xp)
 
 
