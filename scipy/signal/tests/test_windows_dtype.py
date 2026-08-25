@@ -60,6 +60,14 @@ def test_basic_window_default_dtype_unchanged(window, extra_args):
     assert window(8, *extra_args).dtype == np.float64
 
 
+def test_explicit_mlx_compat_namespace():
+    xp = pytest.importorskip("array_api_compat.mlx")
+    actual = windows.boxcar(4, xp=xp, dtype=xp.float32)
+
+    assert actual.dtype == xp.float32
+    assert actual.tolist() == [1.0, 1.0, 1.0, 1.0]
+
+
 @make_xp_test_case(*WINDOW_FUNCTIONS)
 @pytest.mark.parametrize("window, extra_args", WINDOW_CASES)
 @pytest.mark.parametrize("dtype_name", ("int32", "complex64"))
