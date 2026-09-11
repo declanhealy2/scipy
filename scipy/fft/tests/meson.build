@@ -6,6 +6,7 @@ python_sources = [
   'mock_backend.py',
   'test_fftlog.py',
   'test_multithreading.py',
+  'test_native_namespace.py',
   'test_real_transforms.py'
 ]
 

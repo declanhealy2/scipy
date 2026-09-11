@@ -1,6 +1,6 @@
 project(
   'scipy',
-  'c', 'cpp', 'cython',
+  'c', 'cpp', 'cython', 'fortran',
   version: run_command(['tools/building/gitversion.py'], check: true).stdout().strip(),
   license: 'BSD-3',
   meson_version: '>= 1.5.0',
@@ -41,6 +41,7 @@ endif
 
 cc = meson.get_compiler('c')
 cpp = meson.get_compiler('cpp')
+ff = meson.get_compiler('fortran')
 cy = meson.get_compiler('cython')
 # generator() doesn't accept compilers, only found programs - cast it.
 cython = find_program(cy.cmd_array()[0])

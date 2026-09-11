@@ -1,5 +1,7 @@
 option('blas', type: 'string', value: 'openblas',
         description: 'option for BLAS library switching')
+option('uniform-mlx', type: 'boolean', value: true,
+       description: 'Build the MLX CPU binding for uniform integral evaluation')
 option('lapack', type: 'string', value: 'openblas',
         description: 'option for LAPACK library switching')
 

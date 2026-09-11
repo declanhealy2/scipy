@@ -1,8 +1,21 @@
-from scipy._lib._array_api import (
-    array_namespace, is_numpy, xp_unsupported_param_msg, is_complex, xp_float_to_complex
-)
-from . import _duccfft
 import numpy as np
+
+from scipy._external import array_api_compat
+from scipy._lib._array_api import (
+    array_namespace,
+    is_complex,
+    is_numpy,
+    xp_float_to_complex,
+    xp_unsupported_param_msg,
+)
+
+from . import _duccfft
+
+
+def _fft_namespace(x):
+    if array_api_compat.is_array_api_obj(x):
+        return array_api_compat.array_namespace(x)
+    return array_namespace(x)
 
 
 def _validate_fft_args(workers, plan, norm):
@@ -18,14 +31,8 @@ def _validate_fft_args(workers, plan, norm):
 # these functions expect complex input in the fft standard extension
 complex_funcs = {'fft', 'ifft', 'fftn', 'ifftn', 'hfft', 'irfft', 'irfftn'}
 
-# duccfft is used whenever SCIPY_ARRAY_API is not set,
-# or x is a NumPy array or array-like.
-# When SCIPY_ARRAY_API is set, we try to use xp.fft for CuPy arrays,
-# PyTorch arrays and other array API standard supporting objects.
-# If xp.fft does not exist, we attempt to convert to np and back to use duccfft.
-
 def _execute_1D(func_str, duccfft_func, x, n, axis, norm, overwrite_x, workers, plan):
-    xp = array_namespace(x)
+    xp = _fft_namespace(x)
 
     if is_numpy(xp):
         x = np.asarray(x)
@@ -50,7 +57,7 @@ def _execute_1D(func_str, duccfft_func, x, n, axis, norm, overwrite_x, workers, 
 
 
 def _execute_nD(func_str, duccfft_func, x, s, axes, norm, overwrite_x, workers, plan):
-    xp = array_namespace(x)
+    xp = _fft_namespace(x)
 
     if is_numpy(xp):
         x = np.asarray(x)
@@ -168,7 +175,7 @@ def _swap_direction(norm):
 
 def hfftn(x, s=None, axes=None, norm=None,
           overwrite_x=False, workers=None, *, plan=None):
-    xp = array_namespace(x)
+    xp = _fft_namespace(x)
     if is_numpy(xp):
         x = np.asarray(x)
         return _duccfft.hfftn(x, s, axes, norm, overwrite_x, workers, plan=plan)
@@ -185,7 +192,7 @@ def hfft2(x, s=None, axes=(-2, -1), norm=None,
 
 def ihfftn(x, s=None, axes=None, norm=None,
            overwrite_x=False, workers=None, *, plan=None):
-    xp = array_namespace(x)
+    xp = _fft_namespace(x)
     if is_numpy(xp):
         x = np.asarray(x)
         return _duccfft.ihfftn(x, s, axes, norm, overwrite_x, workers, plan=plan)

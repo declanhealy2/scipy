@@ -8,6 +8,7 @@ py3.install_sources([
     'test_gil.py',
     'test_interpnd.py',
     'test_interpolate.py',
+    'test_uniform_integral.py',
     'test_ndgriddata.py',
     'test_pade.py',
     'test_polyint.py',
