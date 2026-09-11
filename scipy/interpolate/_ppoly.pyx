@@ -16,6 +16,11 @@ from scipy.linalg.cython_lapack cimport blas_int, dgeev
 
 include "_poly_common.pxi"
 
+cdef extern from "src/ppoly_native.h":
+    void scipy_ppoly_evaluate(const double*, const double*, const double*,
+                             long long, long long, long long, long long,
+                             int, int, long long, long long, long long, double*) noexcept nogil
+
 DEF MAX_DIMS = 64
 
 #------------------------------------------------------------------------------
@@ -70,6 +75,19 @@ def evaluate(const double_or_complex[:,:,::1] c,
         raise ValueError("out and c have incompatible shapes")
     if c.shape[1] != x.shape[0] - 1:
         raise ValueError("x and c have incompatible shapes")
+
+    if c.shape[0] == 0 or x.shape[0] < 2:
+        raise ValueError("At least one polynomial and two knots are required")
+    if xp.shape[0] == 0 or c.shape[2] == 0:
+        return
+    if double_or_complex is double:
+        with nogil:
+            scipy_ppoly_evaluate(&c[0, 0, 0], &x[0], &xp[0],
+                                 c.shape[2], c.shape[1], c.shape[0], xp.shape[0],
+                                 dx, extrapolate, c.strides[0] // sizeof(double),
+                                 c.strides[1] // sizeof(double), out.strides[0] // sizeof(double),
+                                 &out[0, 0])
+        return
 
     interval = 0
     cdef bint ascending = x[x.shape[0] - 1] >= x[0]

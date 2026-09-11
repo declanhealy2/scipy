@@ -14,14 +14,27 @@ from scipy.special import comb
 
 from scipy._lib._array_api import (
     array_namespace, xp_capabilities, scipy_namespace_for, is_numpy,
-    xp_result_device
+    xp_result_device, _asarray, xp_copy
 )
 
 from . import _fitpack_py
 from ._polyint import _Interpolator1D
 from . import _ppoly
+from scipy._external.array_api_compat import (
+    array_namespace as native_array_namespace, is_array_api_obj,
+    is_mlx_namespace, is_numpy_array,
+)
+
+
 from ._interpnd import _ndim_coords_from_arrays
 from ._bsplines import make_interp_spline, BSpline
+
+
+def _polynomial_namespace(*arrays):
+    if arrays and all(is_numpy_array(value) for value in arrays):
+        return np
+    arrays = tuple(value for value in arrays if is_array_api_obj(value))
+    return native_array_namespace(*arrays) if arrays else np
 
 
 @xp_capabilities(out_of_scope=True)
@@ -608,15 +621,16 @@ class interp1d(_Interpolator1D):
 
 
 class _PPolyBase:
-    """Base class for piecewise polynomials -- NumPy backend."""
+    """Storage, validation and evaluation of piecewise polynomials."""
     __slots__ = ('c', 'x', 'extrapolate', 'axis')
 
     # generic type compatibility with scipy-stubs
     __class_getitem__: classmethod = classmethod(GenericAlias)
 
     def __init__(self, c, x, extrapolate=None, axis=0):
-        self.c = np.asarray(c)
-        self.x = np.ascontiguousarray(x, dtype=np.float64)
+        xp = _polynomial_namespace(c, x)
+        self.c = xp.asarray(c)
+        self.x = _asarray(x, dtype=xp.float64, order="C", xp=xp)
 
         if extrapolate is None:
             extrapolate = True
@@ -639,8 +653,8 @@ class _PPolyBase:
             #                                               ^
             #                                              axis
             # So we roll two of them.
-            self.c = np.moveaxis(self.c, axis+1, 0)
-            self.c = np.moveaxis(self.c, axis+1, 0)
+            self.c = xp.moveaxis(self.c, axis+1, 0)
+            self.c = xp.moveaxis(self.c, axis+1, 0)
 
         if self.x.ndim != 1:
             raise ValueError("x must be 1-dimensional")
@@ -652,25 +666,29 @@ class _PPolyBase:
             raise ValueError("polynomial must be at least of order 0")
         if self.c.shape[1] != self.x.size-1:
             raise ValueError("number of coefficients != len(x)-1")
-        dx = np.diff(self.x)
-        if not (np.all(dx >= 0) or np.all(dx <= 0)):
+        dx = xp.diff(self.x)
+        if not (xp.all(dx >= 0) or xp.all(dx <= 0)):
             raise ValueError("`x` must be strictly increasing or decreasing.")
 
-        dtype = self._get_dtype(self.c.dtype)
-        self.c = np.ascontiguousarray(self.c, dtype=dtype)
+        dtype = self._get_dtype(self.c.dtype, xp)
+        self.c = _asarray(self.c, dtype=dtype, order="C", xp=xp)
 
-    def _get_dtype(self, dtype):
-        if np.issubdtype(dtype, np.complexfloating) \
-               or np.issubdtype(self.c.dtype, np.complexfloating):
-            return np.complex128
-        else:
-            return np.float64
+    def _get_dtype(self, dtype, xp):
+        if (xp.isdtype(dtype, 'complex floating')
+                or xp.isdtype(self.c.dtype, 'complex floating')):
+            if not hasattr(xp, 'complex128'):
+                raise NotImplementedError(
+                    "PPoly requires complex128 for complex coefficients"
+                )
+            return xp.complex128
+        return xp.float64
 
     @classmethod
     def construct_fast(cls, c, x, extrapolate=None, axis=0):
         self = object.__new__(cls)
-        self.c = np.asarray(c)
-        self.x = np.asarray(x)
+        xp = _polynomial_namespace(c, x)
+        self.c = xp.asarray(c)
+        self.x = xp.asarray(x)
         self.axis = axis
         if extrapolate is None:
             extrapolate = True
@@ -682,14 +700,17 @@ class _PPolyBase:
         c and x may be modified by the user. The Cython code expects
         that they are C contiguous.
         """
+        if not is_numpy_array(self.c):
+            return
         if not self.x.flags.c_contiguous:
             self.x = self.x.copy()
         if not self.c.flags.c_contiguous:
             self.c = self.c.copy()
 
     def extend(self, c, x):
-        c = np.asarray(c)
-        x = np.asarray(x)
+        xp = _polynomial_namespace(self.c, self.x, c, x)
+        c = xp.asarray(c)
+        x = xp.asarray(x)
 
         if c.ndim < 2:
             raise ValueError("invalid dimensions for c")
@@ -702,11 +723,11 @@ class _PPolyBase:
                 f"Shapes of c {c.shape} and self.c {self.c.shape} are incompatible"
             )
 
-        if c.size == 0:
+        if prod(c.shape) == 0:
             return
 
-        dx = np.diff(x)
-        if not (np.all(dx >= 0) or np.all(dx <= 0)):
+        dx = xp.diff(x)
+        if not (xp.all(dx >= 0) or xp.all(dx <= 0)):
             raise ValueError("`x` is not sorted.")
 
         if self.x[-1] >= self.x[0]:
@@ -734,29 +755,32 @@ class _PPolyBase:
                 raise ValueError("`x` is neither on the left or on the right "
                                 "from `self.x`.")
 
-        dtype = self._get_dtype(c.dtype)
+        dtype = self._get_dtype(c.dtype, xp)
 
         k2 = max(c.shape[0], self.c.shape[0])
-        c2 = np.zeros((k2, self.c.shape[1] + c.shape[1]) + self.c.shape[2:],
+        c2 = xp.zeros((k2, self.c.shape[1] + c.shape[1]) + self.c.shape[2:],
                     dtype=dtype)
 
         if action == 'append':
             c2[k2-self.c.shape[0]:, :self.c.shape[1]] = self.c
             c2[k2-c.shape[0]:, self.c.shape[1]:] = c
-            self.x = np.r_[self.x, x]
+            self.x = xp.concat((self.x, x))
         elif action == 'prepend':
             c2[k2-self.c.shape[0]:, :c.shape[1]] = c
             c2[k2-c.shape[0]:, c.shape[1]:] = self.c
-            self.x = np.r_[x, self.x]
+            self.x = xp.concat((x, self.x))
 
         self.c = c2
 
     def __call__(self, x, nu=0, extrapolate=None):
         if extrapolate is None:
             extrapolate = self.extrapolate
-        x = np.asarray(x)
+        xp = native_array_namespace(self.c, self.x)
+        x = xp.asarray(x, dtype=xp.float64)
         x_shape, x_ndim = x.shape, x.ndim
-        x = np.ascontiguousarray(x.ravel(), dtype=np.float64)
+        x = _asarray(xp.reshape(x, (-1,)), dtype=xp.float64, order="C", xp=xp)
+        if nu < 0:
+            raise ValueError("Order of derivative cannot be negative")
 
         # With periodic extrapolation we map x to the segment
         # [self.x[0], self.x[-1]].
@@ -764,41 +788,49 @@ class _PPolyBase:
             x = self.x[0] + (x - self.x[0]) % (self.x[-1] - self.x[0])
             extrapolate = False
 
-        out = np.empty((len(x), prod(self.c.shape[2:])), dtype=self.c.dtype)
         self._ensure_c_contiguous()
-        self._evaluate(x, nu, extrapolate, out)
-        out = out.reshape(x_shape + self.c.shape[2:])
+        out = self._evaluate(x, nu, extrapolate)
+        out = xp.reshape(out, x_shape + self.c.shape[2:])
         if self.axis != 0:
             # transpose to move the calculated values to the interpolation axis
             l = list(range(out.ndim))
             l = l[x_ndim:x_ndim+self.axis] + l[:x_ndim] + l[x_ndim+self.axis:]
-            out = out.transpose(l)
+            out = xp.permute_dims(out, l)
         return out
 
 
 class _PPoly(_PPolyBase):
-    """NumPy backend for PPoly."""
+    """Piecewise polynomials with resident real evaluation."""
 
-    def _evaluate(self, x, nu, extrapolate, out):
-        _ppoly.evaluate(self.c.reshape(self.c.shape[0], self.c.shape[1], -1),
-                        self.x, x, nu, bool(extrapolate), out)
+    def _evaluate(self, x, nu, extrapolate):
+        xp = native_array_namespace(self.c, self.x)
+        c = xp.reshape(self.c, (self.c.shape[0], self.c.shape[1], -1))
+        if not is_numpy(xp):
+            from ._ppoly_mlx import evaluate
+            return evaluate(c, self.x, x, nu, bool(extrapolate))
+        out = np.empty((len(x), prod(self.c.shape[2:])), dtype=self.c.dtype)
+        _ppoly.evaluate(c, self.x, x, nu, bool(extrapolate), out)
+        return out
 
     def derivative(self, nu=1):
         if nu < 0:
             return self.antiderivative(-nu)
 
-        # reduce order
+        xp = native_array_namespace(self.c, self.x)
         if nu == 0:
-            c2 = self.c.copy()
+            c2 = xp_copy(self.c, xp=xp)
         else:
-            c2 = self.c[:-nu, :].copy()
+            c2 = xp_copy(self.c[:-nu, :], xp=xp)
 
         if c2.shape[0] == 0:
             # derivative of order 0 is zero
-            c2 = np.zeros((1,) + c2.shape[1:], dtype=c2.dtype)
+            c2 = xp.zeros((1,) + c2.shape[1:], dtype=c2.dtype)
 
         # multiply by the correct rising factorials
-        factor = spec.poch(np.arange(c2.shape[0], 0, -1), nu)
+        factor = xp.asarray(
+            [prod(float(j) for j in range(k, k + nu))
+             for k in range(c2.shape[0], 0, -1)], dtype=xp.float64,
+        )
         c2 *= factor[(slice(None),) + (None,)*(c2.ndim-1)]
 
         # construct a compatible polynomial
@@ -837,18 +869,37 @@ class _PPoly(_PPolyBase):
         if nu <= 0:
             return self.derivative(-nu)
 
-        c = np.zeros((self.c.shape[0] + nu, self.c.shape[1]) + self.c.shape[2:],
+        xp = native_array_namespace(self.c, self.x)
+        c = xp.zeros((self.c.shape[0] + nu, self.c.shape[1]) + self.c.shape[2:],
                      dtype=self.c.dtype)
         c[:-nu] = self.c
 
         # divide by the correct rising factorials
-        factor = spec.poch(np.arange(self.c.shape[0], 0, -1), nu)
+        factor = xp.asarray(
+            [prod(float(j) for j in range(k, k + nu))
+             for k in range(self.c.shape[0], 0, -1)], dtype=xp.float64,
+        )
         c[:-nu] /= factor[(slice(None),) + (None,)*(c.ndim-1)]
 
         # fix continuity of added degrees of freedom
         self._ensure_c_contiguous()
-        _ppoly.fix_continuity(c.reshape(c.shape[0], c.shape[1], -1),
-                              self.x, nu - 1)
+        if is_numpy(xp):
+            _ppoly.fix_continuity(c.reshape(c.shape[0], c.shape[1], -1), self.x, nu - 1)
+        else:
+            dx = xp.reshape(xp.diff(self.x), (-1,) + (1,) * (c.ndim - 2))
+            for derivative in range(nu - 1, -1, -1):
+                terms = xp.zeros_like(c[0])
+                for row in range(c.shape[0] - derivative):
+                    degree = c.shape[0] - row - 1
+                    factor = prod(
+                        float(j) for j in range(degree - derivative + 1, degree + 1)
+                    )
+                    terms = terms * dx + c[row] * factor
+                increments = xp.concat((xp.zeros_like(terms[:1]), terms[:-1]))
+                c[-derivative - 1] += (
+                    xp.cumulative_sum(increments, axis=0)
+                    / prod(float(j) for j in range(1, derivative + 1))
+                )
 
         if self.extrapolate == 'periodic':
             extrapolate = False
@@ -859,6 +910,19 @@ class _PPoly(_PPolyBase):
         return self.construct_fast(c, self.x, extrapolate, self.axis)
 
     def integrate(self, a, b, extrapolate=None):
+        if not is_numpy_array(self.c):
+            if extrapolate is None:
+                extrapolate = self.extrapolate
+            primitive = self.antiderivative()
+            if extrapolate != 'periodic':
+                return (primitive(b, extrapolate=extrapolate)
+                        - primitive(a, extrapolate=extrapolate))
+            period = self.x[-1] - self.x[0]
+            offset_a, offset_b = a - self.x[0], b - self.x[0]
+            periods = offset_b // period - offset_a // period
+            a = self.x[0] + offset_a % period
+            b = self.x[0] + offset_b % period
+            return periods * primitive(self.x[-1]) + primitive(b) - primitive(a)
         if extrapolate is None:
             extrapolate = self.extrapolate
 
@@ -921,6 +985,10 @@ class _PPoly(_PPolyBase):
         return range_int.reshape(self.c.shape[2:])
 
     def solve(self, y=0., discontinuity=True, extrapolate=None):
+        if not is_numpy_array(self.c):
+            raise NotImplementedError(
+                "PPoly root finding is not implemented for this backend"
+            )
 
         if extrapolate is None:
             extrapolate = self.extrapolate
@@ -983,10 +1051,12 @@ class _PPoly(_PPolyBase):
 class _BPoly(_PPolyBase):
     """NumPy backend for BPoly."""
 
-    def _evaluate(self, x, nu, extrapolate, out):
+    def _evaluate(self, x, nu, extrapolate):
+        out = np.empty((len(x), prod(self.c.shape[2:])), dtype=self.c.dtype)
         _ppoly.evaluate_bernstein(
             self.c.reshape(self.c.shape[0], self.c.shape[1], -1),
             self.x, x, nu, bool(extrapolate), out)
+        return out
 
     def derivative(self, nu=1):
         if nu < 0:
@@ -1255,7 +1325,7 @@ def _get_xp_ppoly_cls(xp):
     """
     # A device kwarg could be added to give device dependent delegation
     # e.g., delegating torch to numpy on CPU and cupy on GPU.
-    if is_numpy(xp):
+    if is_numpy(xp) or is_mlx_namespace(xp):
         return _PPoly, xp
     spx = scipy_namespace_for(xp)
     cls = getattr(getattr(spx, "interpolate", None), "PPoly", None)
@@ -1295,6 +1365,13 @@ _ppoly_extra_note = (
     """The methods ``solve`` and ``roots`` are currently not supported
     with CuPy. ``solve`` and ``roots`` with ``c.ndim > 2`` are currently
     only supported with NumPy.
+
+    Builds with the optional MLX extension support real coefficients,
+    evaluation, differentiation, integration and extension on MLX arrays.
+    Construction and calculus require an MLX CPU stream for float64 arithmetic;
+    evaluation schedules the same native real polynomial kernel as NumPy on
+    MLX-owned CPU storage. Complex coefficients, roots and conversion from
+    spline or Bernstein representations are not supported with MLX.
 
     If a ppoly object is called on an input array ``x`` with namespace
     different from the namespace ``xp`` of the breakpoints and coefficients
@@ -1398,7 +1475,7 @@ class PPoly:
     __class_getitem__: classmethod = classmethod(GenericAlias)
 
     def __init__(self, c, x, extrapolate=None, axis=0):
-        xp = array_namespace(c, x)
+        xp = _polynomial_namespace(c, x)
         xp_ppoly_cls, xp_internal = _get_xp_ppoly_cls(xp)
         # a NumPy round-trip in the delegate must return results on the
         # device of the inputs, not on the backend's default device
@@ -1417,7 +1494,7 @@ class PPoly:
         return state
 
     def __setstate__(self, state):
-        self._xp = array_namespace(state.pop("_xp"))
+        self._xp = _polynomial_namespace(state.pop("_xp"))
         _, xp_internal = _get_xp_ppoly_cls(self._xp)
         self._xp_internal = xp_internal
         self.__dict__.update(state)
@@ -1428,7 +1505,7 @@ class PPoly:
         self = object.__new__(cls)
         self._delegate_to = xp_ppoly
         self._xp = xp_external
-        self._xp_internal = array_namespace(xp_ppoly.c)
+        self._xp_internal = native_array_namespace(xp_ppoly.c)
         self._device = device
         return self
 
@@ -1442,7 +1519,7 @@ class PPoly:
         ``c`` array can only be of dtypes float and complex, and ``x``
         array must have dtype float.
         """
-        xp = array_namespace(c, x)
+        xp = _polynomial_namespace(c, x)
         xp_ppoly_cls, xp_internal = _get_xp_ppoly_cls(xp)
         device = xp_result_device(c, x)
         c, x = xp_internal.asarray(c), xp_internal.asarray(x)
@@ -1805,8 +1882,12 @@ class PPoly:
                 extrapolate = tck.extrapolate
         else:
             t, c, k = tck
-            xp = array_namespace(t, c)
+            xp = _polynomial_namespace(t, c)
         xp_cls, xp_internal = _get_xp_ppoly_cls(xp)
+        if xp_cls is _PPoly and not is_numpy(xp_internal):
+            raise NotImplementedError(
+                "PPoly.from_spline is not implemented for this backend"
+            )
         device = xp_result_device(t, c)
         t, c = xp_internal.asarray(t), xp_internal.asarray(c)
         pp = xp_cls.from_spline((t, c, k), extrapolate=extrapolate)
@@ -1831,6 +1912,10 @@ class PPoly:
             raise TypeError(f".from_bernstein_basis only accepts BPoly instances. "
                             f"Got {type(bp)} instead.")
         xp = bp._xp
+        if is_mlx_namespace(xp):
+            raise NotImplementedError(
+                "PPoly.from_bernstein_basis is not implemented for MLX"
+            )
         xp_cls, _ = _get_xp_ppoly_cls(xp)
         pp = xp_cls.from_bernstein_basis(bp._delegate_to, extrapolate=extrapolate)
         return cls._construct_from_xp(pp, xp_external=xp, device=bp._device)

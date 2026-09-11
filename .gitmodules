@@ -4,7 +4,7 @@
 
 [submodule "subprojects/array_api_compat"]
 	path = subprojects/array_api_compat
-	url = https://github.com/data-apis/array-api-compat
+	url = https://github.com/declanhealy2/array-api-compat.git
 
 [submodule "subprojects/array_api_extra"]
 	path = subprojects/array_api_extra

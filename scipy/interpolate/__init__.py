@@ -214,7 +214,6 @@ from ._rgi import *
 from ._ndbspline import NdBSpline
 
 from ._bary_rational import *
-from ._uniform_integral import uniform_grid_span, uniform_integral
 
 
 __all__ = [s for s in dir() if not s.startswith('_')]

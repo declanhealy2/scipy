@@ -23,8 +23,6 @@ requires = [
     "pybind11>=2.13.2",     # when updating version, also update check in scipy/meson.build
     "pythran>=0.18.1",      # when updating version, also update check in meson.build
     "numpy>=2.0.0",
-    "nanobind==3.0.1; sys_platform == 'darwin'",
-    "mlx>=0.32.2; sys_platform == 'darwin'",
 ]
 
 [project]
@@ -103,8 +101,6 @@ build = [
     "pybind11>=2.13.2",
     "pythran>=0.18.1",
     "numpy>=2.0.0",
-    "nanobind==3.0.1; sys_platform == 'darwin'",
-    "mlx>=0.32.2; sys_platform == 'darwin'",
     "ninja>=1.8.2",
 ]
 

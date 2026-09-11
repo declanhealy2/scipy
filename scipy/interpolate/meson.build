@@ -1,16 +1,4 @@
-uniform_kernel = shared_library('uniform_integral', 'src/uniform_integral.f90',
-  dependencies: dependency('openmp', language: 'fortran'),
-  fortran_args: ff.get_supported_arguments('-ffp-contract=off'),
-  install: true, install_dir: py3.get_install_dir() / 'scipy/interpolate',
-)
-py3.extension_module('_uniform_integral_numpy', 'src/uniform_integral_numpy.cpp',
-  dependencies: np_dep, link_with: uniform_kernel,
-  install_rpath: host_machine.system() == 'darwin' ? '@loader_path' : '$ORIGIN',
-  install: true, subdir: 'scipy/interpolate',
-)
-py3.install_sources('_uniform_integral.py', subdir: 'scipy/interpolate')
-
-if get_option('uniform-mlx') and host_machine.system() == 'darwin'
+if get_option('ppoly-mlx') and host_machine.system() == 'darwin'
   mlx_dir = run_command(py3, '-c',
     'import mlx.core, pathlib; print(pathlib.Path(mlx.core.__file__).parent)',
     check: true).stdout().strip()
@@ -18,13 +6,13 @@ if get_option('uniform-mlx') and host_machine.system() == 'darwin'
     'import nanobind, pathlib; print(pathlib.Path(nanobind.__file__).parent)',
     check: true).stdout().strip()
   mlx_dep = cpp.find_library('mlx', dirs: mlx_dir / 'lib')
-  py3.extension_module('_uniform_integral_mlx',
-    ['src/uniform_integral_mlx.cpp', nb_dir / 'src/nb_combined.cpp'],
+  py3.extension_module('_ppoly_mlx',
+    ['src/ppoly_mlx.cpp', nb_dir / 'src/nb_combined.cpp'],
     include_directories: include_directories(mlx_dir / 'include', nb_dir / 'include',
                                             nb_dir / 'ext/robin_map/include'),
-    cpp_args: ['-DNB_DOMAIN=mlx'],
+    cpp_args: ['-DNB_DOMAIN=mlx', '-ffp-contract=off'],
     override_options: ['cpp_std=c++20'],
-    dependencies: mlx_dep, link_with: uniform_kernel,
+    dependencies: mlx_dep,
     install_rpath: '@loader_path:@loader_path/../../mlx/lib',
     install: true, subdir: 'scipy/interpolate',
   )
@@ -41,7 +29,7 @@ py3.extension_module('_interpnd',
 
 py3.extension_module('_ppoly',
   linalg_cython_gen.process('_ppoly.pyx'),
-  c_args: cython_c_args,
+  c_args: [cython_c_args, cc.get_supported_arguments('-ffp-contract=off')],
   dependencies: np_dep,
   link_args: version_link_args,
   install: true,
