@@ -44,10 +44,15 @@ jobs:
       - name: Build dependencies
         shell: bash
         run: |
-          brew install gcc pkg-config openblas
+          brew install gcc pkg-config openblas ccache
           gfortran --version
           python -m pip install --upgrade pip build delocate cmake setuptools
           mkdir -p wheelhouse
+
+      - uses: hendrikmuhs/ccache-action@v1.2.23
+        with:
+          key: fork-wheels-scipy
+          max-size: 2G
 
       - name: Install MLX fork wheels (meson needs mlx importable)
         shell: bash
@@ -79,6 +84,8 @@ jobs:
         shell: bash
         env:
           MACOSX_DEPLOYMENT_TARGET: ${{ inputs.macos-target }}
+          CC: ccache cc
+          CXX: ccache c++
         run: |
           export PKG_CONFIG_PATH="$(brew --prefix openblas)/lib/pkgconfig:${PKG_CONFIG_PATH}"
           python -m build -w --no-isolation -Csetup-args=-Dppoly-mlx=true
@@ -137,6 +144,9 @@ jobs:
         run: |
           python -m pip install --force-reinstall --no-deps wheelhouse/scipy-*.whl
           python -m pip install pytest
+          # Run from outside the source tree so `import scipy` resolves to
+          # the installed wheel, not ./scipy.
+          cd /tmp
           otool -L "$(python -c "import scipy.interpolate._ppoly_mlx as m, pathlib; print(pathlib.Path(m.__file__))")" | grep -i mlx
           python -m pytest --no-header -q "$(python -c "import scipy, pathlib; print(pathlib.Path(scipy.__file__).parent / 'interpolate/tests/test_ppoly_native.py')")"
 
