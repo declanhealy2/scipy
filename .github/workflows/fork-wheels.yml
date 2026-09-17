@@ -45,7 +45,7 @@ jobs:
         run: |
           brew install gcc pkg-config openblas
           gfortran --version
-          python -m pip install --upgrade pip build delocate cmake
+          python -m pip install --upgrade pip build delocate cmake setuptools
           mkdir -p wheelhouse
 
       - name: Build and install MLX fork (meson needs it importable)
