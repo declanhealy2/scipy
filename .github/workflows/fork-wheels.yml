@@ -51,12 +51,18 @@ jobs:
 
       - name: Install MLX fork wheels (meson needs mlx importable)
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p mlx-wheelhouse
           tag="wheels/$(printf '%s' '${{ inputs.mlx_rev }}' | cut -c1-7)"
-          base="https://github.com/declanhealy2/mlx/releases/download/${tag}"
-          curl -sSL -o mlx-wheelhouse/mlx.whl "${base}/mlx-cp313-macos15.whl"
-          curl -sSL -o mlx-wheelhouse/mlx-metal.whl "${base}/mlx-metal-macos15.whl"
+          curl -sSL -H "Authorization: Bearer ${GH_TOKEN}" \
+            "https://api.github.com/repos/declanhealy2/mlx/releases/tags/${tag}" |
+            jq -r '.assets[].browser_download_url' |
+            while read -r url; do
+              curl -sSL -H "Authorization: Bearer ${GH_TOKEN}" \
+                -o "mlx-wheelhouse/$(basename "$url")" "$url"
+            done
           python -m pip install mlx-wheelhouse/*.whl
           python -c "import mlx.core as mx; print(mx.__version__, mx.metal.is_available())"
 
