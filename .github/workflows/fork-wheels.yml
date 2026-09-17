@@ -87,7 +87,20 @@ jobs:
         shell: bash
         run: |
           delocate-wheel -w wheelhouse -v dist/scipy-*.whl
+          # _ppoly_mlx must use the installed mlx's libmlx (meson rpath
+          # ../../mlx/lib), NOT a bundled copy: two libmlx runtimes in one
+          # process breaks cross-library Primitive dispatch, surfacing as
+          # "Failed to load the default metallib" at eval time.
+          zip -d wheelhouse/scipy-*.whl 'scipy/.dylibs/libmlx.dylib'
           for WHEEL in wheelhouse/*.whl; do unzip -l "$WHEEL" | head -6; echo; done
+
+      - name: Verify wheel (install + fork parity tests)
+        shell: bash
+        run: |
+          python -m pip install --force-reinstall --no-deps wheelhouse/scipy-*.whl
+          python -m pip install pytest
+          otool -L "$(python -c "import scipy.interpolate._ppoly_mlx as m, pathlib; print(pathlib.Path(m.__file__))")" | grep -i mlx
+          python -m pytest --no-header -q "$(python -c "import scipy, pathlib; print(pathlib.Path(scipy.__file__).parent / 'interpolate/tests/test_ppoly_native.py')")"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
