@@ -1,0 +1,96 @@
+name: Fork wheels (manual)
+
+# One-shot wheel builder for the PPoly-MLX fork rev. GitHub-hosted macOS
+# runners ship full Xcode plus brew gcc (gfortran), which a local CLT-only
+# machine lacks. Mirrors the flags in the radar repo's pyproject
+# ([tool.uv.extra-build-dependencies] + config-settings-package.scipy).
+#
+# Trigger: gh workflow run "Fork wheels (manual)" --repo declanhealy2/scipy --ref main
+
+on:
+  workflow_dispatch:
+    inputs:
+      rev:
+        description: 'Scipy fork rev to build (full SHA)'
+        required: true
+        default: '098cb8408e7a0e2be93dd382e0ee1fc8e1c215f2'
+      mlx_rev:
+        description: 'MLX fork rev (must match the built _ppoly_mlx binding)'
+        required: true
+        default: 'c61f580c8f874eb201cca7cf4c02eb65c669157d'
+      python-version:
+        description: 'Python version'
+        required: true
+        default: '3.13'
+      macos-target:
+        description: 'MACOSX_DEPLOYMENT_TARGET'
+        required: true
+        default: '15.0'
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.rev }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Build dependencies
+        shell: bash
+        run: |
+          brew install gcc pkg-config openblas
+          gfortran --version
+          python -m pip install --upgrade pip build delocate cmake
+          mkdir -p wheelhouse
+
+      - name: Build and install MLX fork (meson needs it importable)
+        shell: bash
+        env:
+          MACOSX_DEPLOYMENT_TARGET: ${{ inputs.macos-target }}
+        run: |
+          git clone --filter=blob:none --no-checkout \
+            https://github.com/declanhealy2/mlx.git mlx-src
+          git -C mlx-src fetch --depth 1 origin ${{ inputs.mlx_rev }}
+          git -C mlx-src checkout ${{ inputs.mlx_rev }}
+          mkdir -p mlx-wheelhouse
+          cd mlx-src
+          python setup.py clean --all
+          MLX_BUILD_FRONTEND_PACKAGE=1 python -m build -w
+          mv dist/mlx-*.whl ../mlx-wheelhouse/
+          python setup.py clean --all
+          MLX_BUILD_BACKEND_PACKAGE=1 python -m build -w
+          mv dist/mlx_metal-*.whl ../mlx-wheelhouse/
+          cd ..
+          python -m pip install mlx-wheelhouse/*.whl
+          python -c "import mlx.core as mx; print(mx.__version__, mx.metal.is_available())"
+
+      - name: Build dependencies (Python)
+        shell: bash
+        run: |
+          python -m pip install "meson-python>=0.15.0" "Cython>=3.2.0" \
+            "pybind11>=2.13.2" "pythran>=0.18.1" "numpy>=2.0.0" nanobind ninja
+
+      - name: Build scipy wheel (no isolation, ambient mlx+nanobind)
+        shell: bash
+        env:
+          MACOSX_DEPLOYMENT_TARGET: ${{ inputs.macos-target }}
+        run: |
+          python -m build -w --no-isolation -Csetup-args=-Dppoly-mlx=true
+
+      - name: Bundle external dylibs (libgfortran, openblas)
+        shell: bash
+        run: |
+          delocate-wheel -w wheelhouse -v dist/scipy-*.whl
+          for WHEEL in wheelhouse/*.whl; do unzip -l "$WHEEL" | head -6; echo; done
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: scipy-fork-macos-py${{ inputs.python-version }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error
