@@ -87,11 +87,49 @@ jobs:
         shell: bash
         run: |
           delocate-wheel -w wheelhouse -v dist/scipy-*.whl
-          # _ppoly_mlx must use the installed mlx's libmlx (meson rpath
-          # ../../mlx/lib), NOT a bundled copy: two libmlx runtimes in one
-          # process breaks cross-library Primitive dispatch, surfacing as
-          # "Failed to load the default metallib" at eval time.
-          zip -d wheelhouse/scipy-*.whl 'scipy/.dylibs/libmlx.dylib'
+          python - <<'EOF'
+          import base64, glob, hashlib, os, shutil, subprocess, zipfile
+          wheel = glob.glob('wheelhouse/scipy-*.whl')[0]
+          tmp = 'wheelhouse/repack'
+          shutil.rmtree(tmp, ignore_errors=True)
+          with zipfile.ZipFile(wheel) as z:
+              z.extractall(tmp)
+          so = glob.glob(tmp + '/scipy/interpolate/_ppoly_mlx*.so')[0]
+          # Single mlx runtime: _ppoly_mlx must use the installed mlx
+          # package's lib (meson's ../../mlx/lib rpath), not a bundled copy.
+          # A second libmlx in-process breaks Primitive dispatch and fails at
+          # eval with "Failed to load the default metallib".
+          subprocess.run(['install_name_tool', '-change',
+              '@loader_path/../.dylibs/libmlx.dylib',
+              '@loader_path/../../mlx/lib/libmlx.dylib', so], check=True)
+          subprocess.run(['codesign', '-s', '-', '-f', so], check=True)
+          os.remove(tmp + '/scipy/.dylibs/libmlx.dylib')
+          rec = glob.glob(tmp + '/*.dist-info/RECORD')[0]
+          lines = []
+          for root, _, files in os.walk(tmp):
+              for f in sorted(files):
+                  p = os.path.join(root, f)
+                  rel = os.path.relpath(p, tmp)
+                  if os.path.realpath(p) == os.path.realpath(rec):
+                      lines.append(f'{rel},,')
+                      continue
+                  h = hashlib.sha256()
+                  with open(p, 'rb') as fh:
+                      for chunk in iter(lambda: fh.read(65536), b''):
+                          h.update(chunk)
+                  digest = base64.urlsafe_b64encode(h.digest()).rstrip(b'=').decode()
+                  lines.append(f'{rel},sha256={digest},{os.path.getsize(p)}')
+          with open(rec, 'w') as fh:
+              fh.write('\n'.join(sorted(lines)) + '\n')
+          os.remove(wheel)
+          with zipfile.ZipFile(wheel, 'w', zipfile.ZIP_DEFLATED) as z:
+              for root, _, files in os.walk(tmp):
+                  for f in sorted(files):
+                      p = os.path.join(root, f)
+                      z.write(p, os.path.relpath(p, tmp))
+          shutil.rmtree(tmp)
+          print('repacked OK')
+          EOF
           for WHEEL in wheelhouse/*.whl; do unzip -l "$WHEEL" | head -6; echo; done
 
       - name: Verify wheel (install + fork parity tests)
