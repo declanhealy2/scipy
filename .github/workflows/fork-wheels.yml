@@ -49,24 +49,14 @@ jobs:
           python -m pip install --upgrade pip build delocate cmake setuptools
           mkdir -p wheelhouse
 
-      - name: Build and install MLX fork (meson needs it importable)
+      - name: Install MLX fork wheels (meson needs mlx importable)
         shell: bash
-        env:
-          MACOSX_DEPLOYMENT_TARGET: ${{ inputs.macos-target }}
         run: |
-          git clone --filter=blob:none --no-checkout \
-            https://github.com/declanhealy2/mlx.git mlx-src
-          git -C mlx-src fetch --depth 1 origin ${{ inputs.mlx_rev }}
-          git -C mlx-src checkout ${{ inputs.mlx_rev }}
           mkdir -p mlx-wheelhouse
-          cd mlx-src
-          python setup.py clean --all
-          MLX_BUILD_FRONTEND_PACKAGE=1 python -m build -w
-          mv dist/mlx-*.whl ../mlx-wheelhouse/
-          python setup.py clean --all
-          MLX_BUILD_BACKEND_PACKAGE=1 python -m build -w
-          mv dist/mlx_metal-*.whl ../mlx-wheelhouse/
-          cd ..
+          tag="wheels/$(printf '%s' '${{ inputs.mlx_rev }}' | cut -c1-7)"
+          base="https://github.com/declanhealy2/mlx/releases/download/${tag}"
+          curl -sSL -o mlx-wheelhouse/mlx.whl "${base}/mlx-cp313-macos15.whl"
+          curl -sSL -o mlx-wheelhouse/mlx-metal.whl "${base}/mlx-metal-macos15.whl"
           python -m pip install mlx-wheelhouse/*.whl
           python -c "import mlx.core as mx; print(mx.__version__, mx.metal.is_available())"
 
@@ -81,6 +71,7 @@ jobs:
         env:
           MACOSX_DEPLOYMENT_TARGET: ${{ inputs.macos-target }}
         run: |
+          export PKG_CONFIG_PATH="$(brew --prefix openblas)/lib/pkgconfig:${PKG_CONFIG_PATH}"
           python -m build -w --no-isolation -Csetup-args=-Dppoly-mlx=true
 
       - name: Bundle external dylibs (libgfortran, openblas)
