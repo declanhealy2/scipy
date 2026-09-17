@@ -60,8 +60,11 @@ jobs:
             "https://api.github.com/repos/declanhealy2/mlx/releases/tags/${tag}" |
             jq -r '.assets[].browser_download_url' |
             while read -r url; do
+              # browser_download_url percent-encodes '+' as %2B; decode it
+              # back so the saved file is a valid wheel filename again.
+              name=$(python -c "import urllib.parse,sys; print(urllib.parse.unquote(sys.argv[1]))" "$(basename "$url")")
               curl -sSL -H "Authorization: Bearer ${GH_TOKEN}" \
-                -o "mlx-wheelhouse/$(basename "$url")" "$url"
+                -o "mlx-wheelhouse/${name}" "$url"
             done
           python -m pip install mlx-wheelhouse/*.whl
           python -c "import mlx.core as mx; print(mx.__version__, mx.metal.is_available())"
